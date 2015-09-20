@@ -104,7 +104,6 @@ class Bundler {
     }
 
     _handleError(error) {
-        debugger;
         this.options.onError.call(null, error);
     }
 

@@ -167,7 +167,6 @@ var Bundler = (function () {
     };
 
     Bundler.prototype._handleError = function _handleError(error) {
-        debugger;
         this.options.onError.call(null, error);
     };
 
