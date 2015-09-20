@@ -5,7 +5,8 @@ gulp.task('compile', function() {
     return gulp
         .src('src/**/*.js')
         .pipe(babel({
-            modules: 'common'
+            modules: 'common',
+            loose: 'all'
         }))
         .pipe(gulp.dest('dist'));
 });
