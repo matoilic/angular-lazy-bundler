@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/matoilic/angular-lazy-bundler#readme",
   "dependencies": {
+    "bluebird": "^2.10.0",
     "fs-extra": "^0.24.0",
     "glob": "^5.0.14",
     "lodash": "^3.10.1",
