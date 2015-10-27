@@ -10,6 +10,7 @@ Promise.promisifyAll(fs);
 
 const defaultOptions = {
     basePath: 'build',
+    baseUrl: '.',
     bundlesBaseUrl: 'bundles',
     dest: 'build/bundles',
     systemJsConfig: 'config/system.js',
@@ -37,12 +38,13 @@ class Bundler {
     }
 
     bundleComponent(index) {
-        const root = path.dirname(index);
+        const root = this._normalizePath(path.dirname(index));
 
         return this._builder
             .trace(index)
             .then(tree => this._filterVendorImports(tree))
             .then(tree => this._filterSubpackages(root, tree))
+            .then(tree => this._filterPlugins(tree))
             .then(tree => this._buildTree(tree))
             .then(bundle => this._saveBundle(root, bundle))
             .catch(error => this._handleError(error));
@@ -52,7 +54,7 @@ class Bundler {
         const indexFiles = glob.sync(path.join(this.options.basePath, '**', 'index.js'));
 
         return Promise
-            .map(indexFiles, index => path.relative(this.options.basePath, index))
+            .map(indexFiles, index => this._normalizePath(path.relative(this.options.basePath, index)))
             .map(index => this.bundleComponent(index))
             .catch(error => this._handleError(error));
     }
@@ -80,6 +82,19 @@ class Bundler {
         return Promise
             .map(dependencies, packageName => this.bundleDependency(packageName))
             .catch(error => this._handleError(error));
+    }
+
+    _filterPlugins(tree) {
+        if(this._systemConfig.buildCSS) {
+            return tree;
+        }
+
+        return _.omit(tree, dependency => {
+            return (
+                dependency.name.indexOf('!') > -1 &&
+                dependency.name.indexOf('!') < dependency.name.indexOf('plugin-css@')
+            );
+        });
     }
 
     _filterSubpackages(root, tree) {
@@ -110,12 +125,12 @@ class Bundler {
     _instantiateBuilder() {
         let config = this._loadSystemConfig();
         config.bundles = {};
-        config.baseURL = this.options.basePath;
+        config.baseURL = this.options.baseUrl;
 
         const fileProtocol = process.platform === 'win32' ? 'file:///' : 'file://';
         Object.keys(config.paths).forEach(key => {
             if(config.paths[key].indexOf('file:') !== 0) {
-                config.paths[key] = fileProtocol + path.resolve(config.baseURL, config.paths[key]);
+                config.paths[key] = fileProtocol + this._normalizePath(path.resolve(config.baseURL, config.paths[key]));
             }
         });
 
@@ -166,9 +181,21 @@ class Bundler {
         return path.slice(0, path.lastIndexOf('/'));
     }
 
+    _normalizePath(value) {
+        return value.replace(/\\/g, '/');
+    }
+
     _saveBundle(root, bundle) {
         const dirname = path.join(this.options.dest, path.dirname(root));
-        const filename = root !== '.' ? path.basename(root) + '.js' : 'index.js';
+
+        let filename;
+        if(root !== '.') {
+            filename = path.basename(root) + '.js';
+        } else {
+            root = 'index';
+            filename = 'index.js';
+        }
+
         const dest = path.join(dirname, filename);
         let source = bundle.source;
 

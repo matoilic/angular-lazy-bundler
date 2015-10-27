@@ -38,6 +38,7 @@ _bluebird2['default'].promisifyAll(_fsExtra2['default']);
 
 var defaultOptions = {
     basePath: 'build',
+    baseUrl: '.',
     bundlesBaseUrl: 'bundles',
     dest: 'build/bundles',
     systemJsConfig: 'config/system.js',
@@ -73,12 +74,14 @@ var Bundler = (function () {
     Bundler.prototype.bundleComponent = function bundleComponent(index) {
         var _this2 = this;
 
-        var root = _path2['default'].dirname(index);
+        var root = this._normalizePath(_path2['default'].dirname(index));
 
         return this._builder.trace(index).then(function (tree) {
             return _this2._filterVendorImports(tree);
         }).then(function (tree) {
             return _this2._filterSubpackages(root, tree);
+        }).then(function (tree) {
+            return _this2._filterPlugins(tree);
         }).then(function (tree) {
             return _this2._buildTree(tree);
         }).then(function (bundle) {
@@ -94,7 +97,7 @@ var Bundler = (function () {
         var indexFiles = _glob2['default'].sync(_path2['default'].join(this.options.basePath, '**', 'index.js'));
 
         return _bluebird2['default'].map(indexFiles, function (index) {
-            return _path2['default'].relative(_this3.options.basePath, index);
+            return _this3._normalizePath(_path2['default'].relative(_this3.options.basePath, index));
         }).map(function (index) {
             return _this3.bundleComponent(index);
         })['catch'](function (error) {
@@ -136,6 +139,16 @@ var Bundler = (function () {
         });
     };
 
+    Bundler.prototype._filterPlugins = function _filterPlugins(tree) {
+        if (this._systemConfig.buildCSS) {
+            return tree;
+        }
+
+        return _lodash2['default'].omit(tree, function (dependency) {
+            return dependency.name.indexOf('!') > -1 && dependency.name.indexOf('!') < dependency.name.indexOf('plugin-css@');
+        });
+    };
+
     Bundler.prototype._filterSubpackages = function _filterSubpackages(root, tree) {
         var _this6 = this;
 
@@ -171,14 +184,16 @@ var Bundler = (function () {
     };
 
     Bundler.prototype._instantiateBuilder = function _instantiateBuilder() {
+        var _this9 = this;
+
         var config = this._loadSystemConfig();
         config.bundles = {};
-        config.baseURL = this.options.basePath;
+        config.baseURL = this.options.baseUrl;
 
         var fileProtocol = process.platform === 'win32' ? 'file:///' : 'file://';
         Object.keys(config.paths).forEach(function (key) {
             if (config.paths[key].indexOf('file:') !== 0) {
-                config.paths[key] = fileProtocol + _path2['default'].resolve(config.baseURL, config.paths[key]);
+                config.paths[key] = fileProtocol + _this9._normalizePath(_path2['default'].resolve(config.baseURL, config.paths[key]));
             }
         });
 
@@ -229,16 +244,28 @@ var Bundler = (function () {
         return path.slice(0, path.lastIndexOf('/'));
     };
 
+    Bundler.prototype._normalizePath = function _normalizePath(value) {
+        return value.replace(/\\/g, '/');
+    };
+
     Bundler.prototype._saveBundle = function _saveBundle(root, bundle) {
-        var _this9 = this;
+        var _this10 = this;
 
         var dirname = _path2['default'].join(this.options.dest, _path2['default'].dirname(root));
-        var filename = root !== '.' ? _path2['default'].basename(root) + '.js' : 'index.js';
+
+        var filename = undefined;
+        if (root !== '.') {
+            filename = _path2['default'].basename(root) + '.js';
+        } else {
+            root = 'index';
+            filename = 'index.js';
+        }
+
         var dest = _path2['default'].join(dirname, filename);
         var source = bundle.source;
 
         return _fsExtra2['default'].ensureDirAsync(_path2['default'].dirname(dest)).then(function () {
-            if (_this9.options.sourceMaps) {
+            if (_this10.options.sourceMaps) {
                 var sourceMap = filename + '.map';
                 source += '\n\n//# sourceMappingURL=' + sourceMap;
 
@@ -247,7 +274,7 @@ var Bundler = (function () {
         }).then(function () {
             return _fsExtra2['default'].writeFileAsync(dest, source);
         }).then(function () {
-            _this9._systemConfig.bundles[_this9.options.bundlesBaseUrl + '/' + root] = bundle.modules;
+            _this10._systemConfig.bundles[_this10.options.bundlesBaseUrl + '/' + root] = bundle.modules;
         });
     };
 
