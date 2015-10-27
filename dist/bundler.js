@@ -80,9 +80,9 @@ var Bundler = (function () {
             return _this2._filterVendorImports(tree);
         }).then(function (tree) {
             return _this2._filterSubpackages(root, tree);
-        }).then(function (tree) {
-            return _this2._filterPlugins(tree);
-        }).then(function (tree) {
+        })
+        //.then(tree => this._filterPlugins(tree))
+        .then(function (tree) {
             return _this2._buildTree(tree);
         }).then(function (bundle) {
             return _this2._saveBundle(root, bundle);
@@ -181,6 +181,7 @@ var Bundler = (function () {
 
     Bundler.prototype._handleError = function _handleError(error) {
         this.options.onError.call(null, error);
+        throw error;
     };
 
     Bundler.prototype._instantiateBuilder = function _instantiateBuilder() {

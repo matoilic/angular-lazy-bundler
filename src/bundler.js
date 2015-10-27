@@ -120,6 +120,7 @@ class Bundler {
 
     _handleError(error) {
         this.options.onError.call(null, error);
+        throw error;
     }
 
     _instantiateBuilder() {
