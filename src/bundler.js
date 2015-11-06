@@ -16,13 +16,24 @@ const defaultOptions = {
     systemJsConfig: 'config/system.js',
     sourceMaps: true,
     minify: true,
-    onError: function() {},
     tab: '  '
 };
 
 class Bundler {
+    /**
+     *
+     * @param {Object} options - Bundler options.
+     * @param {String} [options.basePath=build] - Where to search for components / index.js files.
+     * @param {String} [options.baseUrl=.] - Base URL on the file system to use for bundling.
+     * @param {String} [options.bundlesBaseUrl=.] - Path relative to the baseURL of SystemJS in the browser of the destination folder.
+     * @param {String} [options.dest=build/bundles] - Destination path where the bundles resources will be written to.
+     * @param {String} [options.systemJsConfig=config/system.js] - Path to the SystemJS configuration file.
+     * @param {Boolean} [options.sourceMaps=true] - Enable / disable sourcemap generation.
+     * @param {Boolean} [options.minify=true] - Enable / disable minification of bundled resources.
+     * @param {Boolean} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
+     */
     constructor(options = {}) {
-        this.options = _.merge({}, defaultOptions, options);
+        this._options = _.merge({}, defaultOptions, options);
         this._builder = this._instantiateBuilder();
         this._systemConfig = this._loadSystemConfig();
         this._systemConfig.bundles = {};
@@ -31,12 +42,18 @@ class Bundler {
     _buildTree(tree) {
         return this._builder
             .bundle(tree, {
-                sourceMaps: this.options.sourceMaps,
-                minify: this.options.minify
+                sourceMaps: this._options.sourceMaps,
+                minify: this._options.minify
             })
             .catch(error => this._handleError(error));
     }
 
+    /**
+     * Bundle a specific application component.
+     *
+     * @param {String} index - Path to the index.js file of the component.
+     * @returns {Promise}
+     */
     bundleComponent(index) {
         const root = this._normalizePath(path.dirname(index));
 
@@ -50,19 +67,37 @@ class Bundler {
             .catch(error => this._handleError(error));
     }
 
+    /**
+     * Bundles all application components.
+     *
+     * @returns {Promise}
+     */
     bundleComponents() {
-        const indexFiles = glob.sync(path.join(this.options.basePath, '**', 'index.js'));
+        const indexFiles = glob.sync(path.join(this._options.basePath, '**', 'index.js'));
 
         return Promise
-            .map(indexFiles, index => this._normalizePath(path.relative(this.options.basePath, index)))
+            .map(indexFiles, index => this._normalizePath(path.relative(this._options.basePath, index)))
             .map(index => this.bundleComponent(index))
             .catch(error => this._handleError(error));
     }
 
+    /**
+     * Bundle a certain vendor package.
+     *
+     * @param {String} packageName - Package name, same as in the SystemJS configuration.
+     * @returns {Promise}
+     */
     bundleDependency(packageName) {
         return this.bundleDependencies([packageName], packageName);
     }
 
+    /**
+     * Combine multiple vendor packages into one bundle.
+     *
+     * @param {Array} packageNames - Which packages to bundle.
+     * @param {String} saveAs - Name of the resulting bundle (without .js extension).
+     * @returns {Promise}
+     */
     bundleDependencies(packageNames, saveAs) {
         const traceExpression = packageNames.join(' + ');
         const dest = saveAs ? saveAs : packageNames.join('+');
@@ -76,6 +111,11 @@ class Bundler {
             .catch(error => this._handleError(error));
     }
 
+    /**
+     * Bundles all vendor packages which are not yet part of an existing bundle.
+     *
+     * @returns {Promise}
+     */
     bundlePackageDependencies() {
         const packageDefinition = JSON.parse(fs.readFileSync('package.json').toString());
         let dependencies = Object.keys(packageDefinition.jspm.dependencies);
@@ -128,14 +168,13 @@ class Bundler {
     }
 
     _handleError(error) {
-        this.options.onError.call(null, error);
         throw error;
     }
 
     _instantiateBuilder() {
         let config = this._loadSystemConfig();
         config.bundles = {};
-        config.baseURL = this.options.baseUrl;
+        config.baseURL = this._options.baseUrl;
 
         const fileProtocol = process.platform === 'win32' ? 'file:///' : 'file://';
         Object.keys(config.paths).forEach(key => {
@@ -154,7 +193,7 @@ class Bundler {
             while(child.indexOf('/') > -1) {
                 child = this._navigateUp(child);
 
-                if(fs.existsSync(path.join(this.options.basePath, child, 'index.js'))) {
+                if(fs.existsSync(path.join(this._options.basePath, child, 'index.js'))) {
                     return true;
                 }
             }
@@ -168,7 +207,7 @@ class Bundler {
             child = this._navigateUp(this._stripPlugins(child));
 
             while(child.length > parent.length) {
-                if(fs.existsSync(path.join(this.options.basePath, child, 'index.js'))) {
+                if(fs.existsSync(path.join(this._options.basePath, child, 'index.js'))) {
                     return true;
                 }
 
@@ -182,11 +221,18 @@ class Bundler {
     _loadSystemConfig() {
         let System = SystemMock.getInstance();
 
-        eval(fs.readFileSync(this.options.systemJsConfig).toString());
+        eval(fs.readFileSync(this._options.systemJsConfig).toString());
 
         return System.appliedConfig;
     }
 
+    /**
+     * Navigates on folder up in the given import path.
+     *
+     * @param {String} path
+     * @returns {String}
+     * @private
+     */
     _navigateUp(path) {
         return path.slice(0, path.lastIndexOf('/'));
     }
@@ -195,12 +241,20 @@ class Bundler {
         return value.replace(/\\/g, '/');
     }
 
+    /**
+     * Writes the bundle contents to disk and adds an entry for it to the SystemJS configuration.
+     *
+     * @param {String} root - Root (index.js) of the component.
+     * @param {Object} bundle - Bundle object generated by SystemJS Builder.
+     * @returns {Promise}
+     * @private
+     */
     _saveBundle(root, bundle) {
         if(!bundle.modules.length) {
             return Promise.resolve(null);
         }
 
-        const dirname = path.join(this.options.dest, path.dirname(root));
+        const dirname = path.join(this._options.dest, path.dirname(root));
 
         let filename;
         if(root !== '.') {
@@ -216,7 +270,7 @@ class Bundler {
         return fs
             .ensureDirAsync(path.dirname(dest))
             .then(() => {
-                if(this.options.sourceMaps) {
+                if(this._options.sourceMaps) {
                     let sourceMap = filename + '.map';
                     source += '\n\n//# sourceMappingURL=' + sourceMap;
 
@@ -227,22 +281,34 @@ class Bundler {
                 return fs.writeFileAsync(dest, source);
             })
             .then(() => {
-                this._systemConfig.bundles[`${this.options.bundlesBaseUrl}/${root}`] = bundle.modules
+                this._systemConfig.bundles[`${this._options.bundlesBaseUrl}/${root}`] = bundle.modules
             })
     }
 
+    /**
+     * Saves bundle information to the SystemJS configuration.
+     *
+     * @returns {Promise}
+     */
     saveConfig() {
         let config = JSON
             .stringify(this._systemConfig, null, 2)
-            .replace(new RegExp(`^${this.options.tab}"(meta|depCache|map|packages|bundles)"`, 'mg'), `${'\n'}${this.options.tab}$1`)
-            .replace(new RegExp(`^${this.options.tab}"(\\w+)"`, 'mg'), this.options.tab + '$1');
+            .replace(new RegExp(`^${this._options.tab}"(meta|depCache|map|packages|bundles)"`, 'mg'), `${'\n'}${this._options.tab}$1`)
+            .replace(new RegExp(`^${this._options.tab}"(\\w+)"`, 'mg'), this._options.tab + '$1');
 
         return fs.writeFileAsync(
-            this.options.systemJsConfig,
+            this._options.systemJsConfig,
             `System.config(${config});${'\n'}`
         );
     }
 
+    /**
+     * Removes plugin statements from an import path.
+     *
+     * @param {String} path
+     * @returns {String}
+     * @private
+     */
     _stripPlugins(path) {
         var pluginIndex = path.indexOf('!');
 
