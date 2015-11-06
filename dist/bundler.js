@@ -80,9 +80,9 @@ var Bundler = (function () {
             return _this2._filterVendorImports(tree);
         }).then(function (tree) {
             return _this2._filterSubpackages(root, tree);
-        })
-        //.then(tree => this._filterPlugins(tree))
-        .then(function (tree) {
+        }).then(function (tree) {
+            return _this2._filterPlugins(tree);
+        }).then(function (tree) {
             return _this2._buildTree(tree);
         }).then(function (bundle) {
             return _this2._saveBundle(root, bundle);
@@ -118,6 +118,8 @@ var Bundler = (function () {
         return this._builder.trace(traceExpression).then(function (tree) {
             return _this4._filterVendors(tree, packageNames);
         }).then(function (tree) {
+            return _this4._filterAlreadyBundled(tree);
+        }).then(function (tree) {
             return _this4._buildTree(tree);
         }).then(function (tree) {
             return _this4._saveBundle(dest, tree);
@@ -139,6 +141,16 @@ var Bundler = (function () {
         });
     };
 
+    Bundler.prototype._filterAlreadyBundled = function _filterAlreadyBundled(tree) {
+        var _this6 = this;
+
+        return _lodash2['default'].omit(tree, function (dependency) {
+            return Object.keys(_this6._systemConfig.bundles).some(function (bundleName) {
+                return _this6._systemConfig.bundles[bundleName].indexOf(dependency.name) !== -1;
+            });
+        });
+    };
+
     Bundler.prototype._filterPlugins = function _filterPlugins(tree) {
         if (this._systemConfig.buildCSS) {
             return tree;
@@ -150,26 +162,26 @@ var Bundler = (function () {
     };
 
     Bundler.prototype._filterSubpackages = function _filterSubpackages(root, tree) {
-        var _this6 = this;
+        var _this7 = this;
 
         return _lodash2['default'].omit(tree, function (dependency) {
-            return _this6._isInSubpackageWithin(dependency.name, root) || _this6._isInPackageOutside(dependency.name, root);
+            return _this7._isInSubpackageWithin(dependency.name, root) || _this7._isInPackageOutside(dependency.name, root);
         });
     };
 
     Bundler.prototype._filterVendorImports = function _filterVendorImports(tree) {
-        var _this7 = this;
+        var _this8 = this;
 
         return _lodash2['default'].pick(tree, function (dependency) {
-            return _this7._stripPlugins(dependency.name).indexOf(':') === -1;
+            return _this8._stripPlugins(dependency.name).indexOf(':') === -1;
         });
     };
 
     Bundler.prototype._filterVendors = function _filterVendors(tree, keepers) {
-        var _this8 = this;
+        var _this9 = this;
 
         var keeperMappings = keepers.map(function (packageName) {
-            return _this8._systemConfig.map[packageName];
+            return _this9._systemConfig.map[packageName];
         });
 
         return _lodash2['default'].pick(tree, function (dependency) {
@@ -185,7 +197,7 @@ var Bundler = (function () {
     };
 
     Bundler.prototype._instantiateBuilder = function _instantiateBuilder() {
-        var _this9 = this;
+        var _this10 = this;
 
         var config = this._loadSystemConfig();
         config.bundles = {};
@@ -194,7 +206,7 @@ var Bundler = (function () {
         var fileProtocol = process.platform === 'win32' ? 'file:///' : 'file://';
         Object.keys(config.paths).forEach(function (key) {
             if (config.paths[key].indexOf('file:') !== 0) {
-                config.paths[key] = fileProtocol + _this9._normalizePath(_path2['default'].resolve(config.baseURL, config.paths[key]));
+                config.paths[key] = fileProtocol + _this10._normalizePath(_path2['default'].resolve(config.baseURL, config.paths[key]));
             }
         });
 
@@ -250,7 +262,11 @@ var Bundler = (function () {
     };
 
     Bundler.prototype._saveBundle = function _saveBundle(root, bundle) {
-        var _this10 = this;
+        var _this11 = this;
+
+        if (!bundle.modules.length) {
+            return _bluebird2['default'].resolve(null);
+        }
 
         var dirname = _path2['default'].join(this.options.dest, _path2['default'].dirname(root));
 
@@ -266,7 +282,7 @@ var Bundler = (function () {
         var source = bundle.source;
 
         return _fsExtra2['default'].ensureDirAsync(_path2['default'].dirname(dest)).then(function () {
-            if (_this10.options.sourceMaps) {
+            if (_this11.options.sourceMaps) {
                 var sourceMap = filename + '.map';
                 source += '\n\n//# sourceMappingURL=' + sourceMap;
 
@@ -275,7 +291,7 @@ var Bundler = (function () {
         }).then(function () {
             return _fsExtra2['default'].writeFileAsync(dest, source);
         }).then(function () {
-            _this10._systemConfig.bundles[_this10.options.bundlesBaseUrl + '/' + root] = bundle.modules;
+            _this11._systemConfig.bundles[_this11.options.bundlesBaseUrl + '/' + root] = bundle.modules;
         });
     };
 

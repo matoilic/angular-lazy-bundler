@@ -70,6 +70,7 @@ class Bundler {
         return this._builder
             .trace(traceExpression)
             .then(tree => this._filterVendors(tree, packageNames))
+            .then(tree => this._filterAlreadyBundled(tree))
             .then(tree => this._buildTree(tree))
             .then(tree => this._saveBundle(dest, tree))
             .catch(error => this._handleError(error));
@@ -82,6 +83,14 @@ class Bundler {
         return Promise
             .map(dependencies, packageName => this.bundleDependency(packageName))
             .catch(error => this._handleError(error));
+    }
+
+    _filterAlreadyBundled(tree) {
+        return _.omit(tree, dependency => {
+            return Object.keys(this._systemConfig.bundles).some(bundleName => {
+                return this._systemConfig.bundles[bundleName].indexOf(dependency.name) !== -1;
+            });
+        });
     }
 
     _filterPlugins(tree) {
@@ -187,6 +196,10 @@ class Bundler {
     }
 
     _saveBundle(root, bundle) {
+        if(!bundle.modules.length) {
+            return Promise.resolve(null);
+        }
+
         const dirname = path.join(this.options.dest, path.dirname(root));
 
         let filename;
