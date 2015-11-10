@@ -1,5 +1,12 @@
 # Angular Lazy Bundler
 
+## Table of contents
+- [What does it do?](#what-does-it-do)
+- [How is it different from tools like Browserify?](how-is-it-different-from-tools-like-browserify)
+- [Requirements](#requirements)
+- [API](#api)
+- [Usage example](#usage-example)
+
 ## What does it do?
 
 Lazy loading components at runtime gives us the advantage to ony load code that is going to be used by the client. At the same time it introduces one big disadvantage; it increases the number of network calls we need to make to load a component / library. This leads to slower page load times and affects the user experience negatively. This is what Angular Lazy Bundler tries to solve.
@@ -47,7 +54,7 @@ For the bundler to work it's required to have a project structure as generated b
 - [.bundlePackageDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
 - [.saveConfig()](#Bundler+saveConfig) ⇒ <code>Promise</code>
 
-<a name="new_Bundler_new"></a>
+<a name="Bundler"></a><a name="new_Bundler_new"></a>
 ### new Bundler(options)
 
 | Param | Type | Default | Description |
@@ -110,7 +117,7 @@ Saves bundle information to the SystemJS configuration.
 **Kind**: instance method of <code>[Bundler](#Bundler)</code>
 
 
-## Usage Example
+## Usage example
 
 ```javascript
 const Bundler = require('angular-lazy-bundler').Bundler;
