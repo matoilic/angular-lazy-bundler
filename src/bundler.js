@@ -9,7 +9,7 @@ import fs from 'fs-extra';
 Promise.promisifyAll(fs);
 
 const defaultOptions = {
-    basePath: 'build',
+    source: 'src',
     baseUrl: '.',
     bundlesBaseUrl: 'bundles',
     dest: 'build/bundles',
@@ -23,14 +23,14 @@ class Bundler {
     /**
      *
      * @param {Object} options - Bundler options.
-     * @param {String} [options.basePath=build] - Where to search for components / index.js files.
+     * @param {String} [options.source=src] - Where to search for components / index.js files.
      * @param {String} [options.baseUrl=.] - Base URL on the file system to use for bundling.
-     * @param {String} [options.bundlesBaseUrl=.] - Path relative to the baseURL of SystemJS in the browser of the destination folder.
-     * @param {String} [options.dest=build/bundles] - Destination path where the bundles resources will be written to.
+     * @param {String} [options.dest=build/bundles] - Destination folder where the bundled resources will be written to.
+     * @param {String} [options.bundlesBaseUrl=bundles] - Path relative to the baseURL of SystemJS in the browser of the destination folder.
      * @param {String} [options.systemJsConfig=config/system.js] - Path to the SystemJS configuration file.
      * @param {Boolean} [options.sourceMaps=true] - Enable / disable sourcemap generation.
      * @param {Boolean} [options.minify=true] - Enable / disable minification of bundled resources.
-     * @param {Boolean} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
+     * @param {String} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
      */
     constructor(options = {}) {
         this._options = _.merge({}, defaultOptions, options);
@@ -73,10 +73,10 @@ class Bundler {
      * @returns {Promise}
      */
     bundleComponents() {
-        const indexFiles = glob.sync(path.join(this._options.basePath, '**', 'index.js'));
+        const indexFiles = glob.sync(path.join(this._options.source, '**', 'index.js'));
 
         return Promise
-            .map(indexFiles, index => this._normalizePath(path.relative(this._options.basePath, index)))
+            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)))
             .map(index => this.bundleComponent(index))
             .catch(error => this._handleError(error));
     }
@@ -118,13 +118,20 @@ class Bundler {
      */
     bundlePackageDependencies() {
         const packageDefinition = JSON.parse(fs.readFileSync('package.json').toString());
-        let dependencies = Object.keys(packageDefinition.jspm.dependencies);
+        const dependencies = Object.keys(packageDefinition.jspm.dependencies);
 
         return Promise
             .map(dependencies, packageName => this.bundleDependency(packageName))
             .catch(error => this._handleError(error));
     }
 
+    /**
+     * Removes all entries from the tree which are already part of a bundle.
+     *
+     * @param {Object} tree
+     * @return {Object}
+     * @private
+     */
     _filterAlreadyBundled(tree) {
         return _.omit(tree, dependency => {
             return Object.keys(this._systemConfig.bundles).some(bundleName => {
@@ -133,6 +140,13 @@ class Bundler {
         });
     }
 
+    /**
+     * Removes all resources from the tree which are loaded using unsupported plugins.
+     *
+     * @param {Object} tree
+     * @returns {Object}
+     * @private
+     */
     _filterPlugins(tree) {
         if(this._systemConfig.buildCSS) {
             return tree;
@@ -146,6 +160,14 @@ class Bundler {
         });
     }
 
+    /**
+     * Removes all resources which are part of a subpackage within the given package root.
+     *
+     * @param {String} root - e.g. components/my-component
+     * @param {Object} tree
+     * @returns {Object}
+     * @private
+     */
     _filterSubpackages(root, tree) {
         return _.omit(tree, dependency => {
             return (
@@ -155,10 +177,25 @@ class Bundler {
         });
     }
 
+    /**
+     * Removes references to 3rd-party libraries from the tree, e.g. npm:angular.
+     *
+     * @param {Object} tree
+     * @returns {Object}
+     * @private
+     */
     _filterVendorImports(tree) {
         return _.pick(tree, dependency => this._stripPlugins(dependency.name).indexOf(':') === -1);
     }
 
+    /**
+     * Removes references to 3rd-party libraries except to the ones given in keepers.
+     *
+     * @param {Object} tree
+     * @param {Array} keepers
+     * @returns {Object}
+     * @private
+     */
     _filterVendors(tree, keepers) {
         const keeperMappings = keepers.map(packageName => this._systemConfig.map[packageName]);
 
@@ -167,10 +204,21 @@ class Bundler {
         });
     }
 
+    /**
+     * Helper function to handle errors.
+     *
+     * @param {Object|String} error
+     * @private
+     */
     _handleError(error) {
         throw error;
     }
 
+    /**
+     * Factory function for SystemJS Builder.
+     *
+     * @private
+     */
     _instantiateBuilder() {
         let config = this._loadSystemConfig();
         config.bundles = {};
@@ -186,6 +234,14 @@ class Bundler {
         return new Builder(config);
     }
 
+    /**
+     * Checks if the given child resource is part of another package which is not a subpackage of parent.
+     *
+     * @param {String} child
+     * @param {String} parent
+     * @returns {boolean}
+     * @private
+     */
     _isInPackageOutside(child, parent) {
         if(child.indexOf(parent) !== 0) {
             child = this._stripPlugins(child);
@@ -193,7 +249,7 @@ class Bundler {
             while(child.indexOf('/') > -1) {
                 child = this._navigateUp(child);
 
-                if(fs.existsSync(path.join(this._options.basePath, child, 'index.js'))) {
+                if(fs.existsSync(path.join(this._options.source, child, 'index.js'))) {
                     return true;
                 }
             }
@@ -202,12 +258,20 @@ class Bundler {
         return false;
     }
 
+    /**
+     * Checks if the given child resource is part of another package which is a subpackage of parent.
+     *
+     * @param {String} child
+     * @param {String} parent
+     * @returns {boolean}
+     * @private
+     */
     _isInSubpackageWithin(child, parent) {
         if(child.indexOf(parent) === 0) {
             child = this._navigateUp(this._stripPlugins(child));
 
             while(child.length > parent.length) {
-                if(fs.existsSync(path.join(this._options.basePath, child, 'index.js'))) {
+                if(fs.existsSync(path.join(this._options.source, child, 'index.js'))) {
                     return true;
                 }
 
@@ -218,6 +282,12 @@ class Bundler {
         return false;
     }
 
+    /**
+     * Reads the SystemJS configuration.
+     *
+     * @returns {Object}
+     * @private
+     */
     _loadSystemConfig() {
         let System = SystemMock.getInstance();
 
@@ -237,6 +307,13 @@ class Bundler {
         return path.slice(0, path.lastIndexOf('/'));
     }
 
+    /**
+     * Normalize paths across platforms to use forward slashes.
+     *
+     * @param {String} value
+     * @returns {String}
+     * @private
+     */
     _normalizePath(value) {
         return value.replace(/\\/g, '/');
     }
