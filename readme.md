@@ -40,12 +40,12 @@ For the bundler to work it's required to have a project structure as generated b
 ## API
 
 [new Bundler(options)](#new_Bundler_new)
-[.bundleComponent(index)](#Bundler+bundleComponent) ⇒ <code>Promise</code>
-[.bundleComponents()](#Bundler+bundleComponents) ⇒ <code>Promise</code>
-[.bundleDependency(packageName)](#Bundler+bundleDependency) ⇒ <code>Promise</code>
-[.bundleDependencies(packageNames, saveAs)](#Bundler+bundleDependencies) ⇒ <code>Promise</code>
-[.bundlePackageDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
-[.saveConfig()](#Bundler+saveConfig) ⇒ <code>Promise</code>
+- [.bundleComponent(index)](#Bundler+bundleComponent) ⇒ <code>Promise</code>
+- [.bundleComponents()](#Bundler+bundleComponents) ⇒ <code>Promise</code>
+- [.bundleDependency(packageName)](#Bundler+bundleDependency) ⇒ <code>Promise</code>
+- [.bundleDependencies(packageNames, saveAs)](#Bundler+bundleDependencies) ⇒ <code>Promise</code>
+- [.bundlePackageDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
+- [.saveConfig()](#Bundler+saveConfig) ⇒ <code>Promise</code>
 
 <a name="new_Bundler_new"></a>
 ### new Bundler(options)
