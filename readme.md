@@ -2,7 +2,7 @@
 
 ## Table of contents
 - [What does it do?](#what-does-it-do)
-- [How is it different from tools like Browserify?](how-is-it-different-from-tools-like-browserify)
+- [How is it different from tools like Browserify?](#how-is-it-different-from-tools-like-browserify)
 - [Requirements](#requirements)
 - [API](#api)
 - [Usage example](#usage-example)
