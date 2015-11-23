@@ -58,7 +58,7 @@ var Bundler = (function () {
      * @param {String} [options.systemJsConfig=config/system.js] - Path to the SystemJS configuration file.
      * @param {Boolean} [options.sourceMaps=true] - Enable / disable sourcemap generation.
      * @param {Boolean} [options.minify=true] - Enable / disable minification of bundled resources.
-     * @param {Boolean} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
+     * @param {String} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
      */
 
     function Bundler() {

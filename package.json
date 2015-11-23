@@ -1,8 +1,13 @@
 {
   "name": "angular-lazy-bundler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "",
   "main": "dist/bundler.js",
+  "files": [
+    "dist",
+    "src",
+    "readme.md"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
