@@ -39,6 +39,13 @@ class Bundler {
         this._systemConfig.bundles = {};
     }
 
+    /**
+     * Bundles all resources in the given dependency tree.
+     *
+     * @param {Object} tree - The dependency tree to build.
+     * @returns {Promise}
+     * @private
+     */
     _buildTree(tree) {
         return this._builder
             .bundle(tree, {
@@ -49,7 +56,38 @@ class Bundler {
     }
 
     /**
-     * Bundle a specific application component.
+     * Bundles components and 3rd-party packages.
+     *
+     * @param {Object} content - Bundle content.
+     * @param {Array} [content.components] - Which components to bundle (without "components/" prefix and without "/index.js" sufix).
+     * @param {Array} [content.packages] - Which packages to bundle.
+     * @param {String} saveAs - Name of the resulting bundle (without .js extension).
+     * @returns {Promise}
+     */
+    bundle({components: components = [], packages: packages = []}, saveAs) {
+        return Promise
+            .map(components, name => `components/${name}/index`)
+            .map(componentIndex => this._builder.trace(componentIndex))
+            .map(tree => this._filterVendorImports(tree))
+            .map(tree => this._filterSubpackages(tree))
+            .map(tree => this._filterPlugins(tree))
+            .reduce((componentsTree, tree) => _.merge(componentsTree, tree), {})
+            .then(componentsTree => {
+                const traceExpression = packages.join(' + ');
+
+                return this._builder
+                    .trace(traceExpression)
+                    .then(tree => this._filterVendors(tree, packages))
+                    .then(tree => this._filterAlreadyBundled(tree))
+                    .then(packagesTree => _.merge(componentsTree, packagesTree))
+            })
+            .then(bundleTree => this._buildTree(bundleTree))
+            .then(bundle => this._saveBundle(saveAs, bundle))
+            .catch(error => this._handleError(error));
+    }
+
+    /**
+     * Bundle a specific component.
      *
      * @param {String} index - Path to the index.js file of the component.
      * @returns {Promise}
@@ -68,16 +106,22 @@ class Bundler {
     }
 
     /**
-     * Bundles all application components.
+     * Combine multiple components into one bundle.
      *
+     * @param {Array} componentNames - Which components to bundle (without "components/" prefix and without "/index.js" sufix).
+     * @param {String} saveAs - Name of the resulting bundle (without .js extension).
      * @returns {Promise}
      */
-    bundleComponents() {
-        const indexFiles = glob.sync(path.join(this._options.source, '**', 'index.js'));
-
+    bundleComponents(componentNames, saveAs) {
         return Promise
-            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)))
-            .map(index => this.bundleComponent(index))
+            .map(componentNames, name => `components/${name}/index`)
+            .map(index => this._builder.trace(index))
+            .map(tree => this._filterVendorImports(tree))
+            .map(tree => this._filterSubpackages(tree))
+            .map(tree => this._filterPlugins(tree))
+            .reduce((bundleTree, tree) => _.merge(bundleTree, tree), {})
+            .then(tree => this._buildTree(tree))
+            .then(bundle => this._saveBundle(saveAs, bundle))
             .catch(error => this._handleError(error));
     }
 
@@ -112,11 +156,25 @@ class Bundler {
     }
 
     /**
+     * Bundles all components which are not yet part of an existing bundle.
+     *
+     * @returns {Promise}
+     */
+    bundleRemainingComponents() {
+        const indexFiles = glob.sync(path.join(this._options.source, '**', 'index.js'));
+
+        return Promise
+            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)))
+            .map(index => this.bundleComponent(index))
+            .catch(error => this._handleError(error));
+    }
+
+    /**
      * Bundles all vendor packages which are not yet part of an existing bundle.
      *
      * @returns {Promise}
      */
-    bundlePackageDependencies() {
+    bundleRemainingDependencies() {
         const packageDefinition = JSON.parse(fs.readFileSync('package.json').toString());
         const dependencies = Object.keys(packageDefinition.jspm.dependencies);
 

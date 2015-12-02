@@ -33,7 +33,7 @@ To load the home state component the browser would need to make at least four re
 |  |  |  home-state.js
 ```
 
-The same is applied for JSPM packages. As of now, if you load JSPM packages in the browser you at least make two server calls. One for the package file, e.g. `lodash@1.x.x.js`. The only purpose of that file is to reference the main package file defined in package.json, e.g. `index.js` for lodash. This is a necessary evil to make NPM packages easy loadable by name in the browser. The Bundler optimizes this load process by combining the package and the main file into one.
+The same is applied for JSPM packages. As of now, if you load JSPM packages in the browser you at least make two server calls. One for the package file, e.g. `lodash@3.x.x.js`. The only purpose of that file is to reference the main package file defined in package.json, e.g. `index.js` for lodash. This is a necessary evil to make NPM packages easy loadable by name in the browser. The Bundler optimizes this load process by combining the package and the main file into one.
 
 After creating the bundles you can tell Angular Lazy Bundler to also update your SystemJS configuration, so that the loader knows about the bundles and loads the combined resources instead of the individual files. See the [bundle config API](https://github.com/systemjs/systemjs/blob/master/docs/config-api.md#bundle) in the SystemJS documentation.
 
@@ -52,7 +52,7 @@ For the bundler to work it's required to have a project structure as generated b
 - [.bundleComponents()](#Bundler+bundleComponents) ⇒ <code>Promise</code>
 - [.bundleDependency(packageName)](#Bundler+bundleDependency) ⇒ <code>Promise</code>
 - [.bundleDependencies(packageNames, saveAs)](#Bundler+bundleDependencies) ⇒ <code>Promise</code>
-- [.bundlePackageDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
+- [.bundleRemainingDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
 - [.saveConfig()](#Bundler+saveConfig) ⇒ <code>Promise</code>
 
 <a name="Bundler"></a><a name="new_Bundler_new"></a>
@@ -106,8 +106,8 @@ Combine multiple vendor packages into one bundle.
 | packageNames | <code>Array</code> | Which packages to bundle. |
 | saveAs | <code>String</code> | Name of the resulting bundle (without .js extension). |
 
-<a name="Bundler+bundlePackageDependencies"></a>
-### bundler.bundlePackageDependencies() ⇒ <code>Promise</code>
+<a name="Bundler+bundleRemainingDependencies"></a>
+### bundler.bundleRemainingDependencies() ⇒ <code>Promise</code>
 Bundles all vendor packages which are not yet part of an existing bundle.
 
 **Kind**: instance method of <code>[Bundler](#Bundler)</code>
@@ -129,7 +129,7 @@ const bundler = new Bundler({
 
 bundler
     //bundles the sources of our application per component
-    .bundleComponents()
+    .bundleRemainingComponents()
     //creates a custom bundle with all packages required for boostrapping the application
     .then(() => {
         return bundler.bundleDependencies(
@@ -144,7 +144,7 @@ bundler
         );
     })
     //bundles the remaining packages individually
-    .then(() => bundler.bundlePackageDependencies())
+    .then(() => bundler.bundleRemainingDependencies())
     //updates our SystemJS configuration
     .then(() => bundler.saveConfig())
     //here we can handle errors
