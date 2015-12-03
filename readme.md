@@ -140,19 +140,32 @@ const bundler = new Bundler({
 });
 
 bundler
+    .bundle(
+        {
+            components: [
+                'application',
+                'home-state'
+            ],
+            packages: [
+                'angular',
+                'angular-resource',
+                'angular-sanitize',
+                'angular-ui-router',
+                'ui-router-extras'
+            ]
+        },
+        'main'
+    )
     //bundles the sources of our application per component
     .bundleRemainingComponents()
     //creates a custom bundle with all packages required for boostrapping the application
     .then(() => {
         return bundler.bundlePackages(
             [
-                'angular',
-                'angular-resource',
-                'angular-sanitize',
-                'angular-ui-router',
-                'ui-router-extras'
+                'date-picker',
+                'moment'
             ],
-            'main-vendors'
+            'date-picker'
         );
     })
     //bundles the remaining packages individually
