@@ -48,7 +48,6 @@ For the bundler to work it's required to have a project structure as generated b
 ## API
 
 [new Bundler(options)](#new_Bundler_new)
-- [new Bundler(options)](#new_Bundler_new)
 - [.bundle(content, saveAs)](#Bundler+bundle)
 - [.bundleComponent(index)](#Bundler+bundleComponent)
 - [.bundleComponents(componentNames, saveAs)](#Bundler+bundleComponents)
