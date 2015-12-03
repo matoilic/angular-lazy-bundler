@@ -149,8 +149,8 @@ class Bundler {
      * @param {String} packageName - Package name, same as in the SystemJS configuration.
      * @returns {Promise}
      */
-    bundleDependency(packageName) {
-        return this.bundleDependencies([packageName], packageName);
+    bundlePackage(packageName) {
+        return this.bundlePackages([packageName], packageName);
     }
 
     /**
@@ -160,7 +160,7 @@ class Bundler {
      * @param {String} saveAs - Name of the resulting bundle (without .js extension).
      * @returns {Promise}
      */
-    bundleDependencies(packageNames, saveAs) {
+    bundlePackages(packageNames, saveAs) {
         const traceExpression = packageNames.join(' + ');
         const dest = saveAs ? saveAs : packageNames.join('+');
 
@@ -192,12 +192,12 @@ class Bundler {
      *
      * @returns {Promise}
      */
-    bundleRemainingDependencies() {
+    bundleRemainingPackages() {
         const packageDefinition = JSON.parse(fs.readFileSync('package.json').toString());
         const dependencies = Object.keys(packageDefinition.jspm.dependencies);
 
         return Promise
-            .map(dependencies, packageName => this.bundleDependency(packageName))
+            .map(dependencies, packageName => this.bundlePackage(packageName))
             .catch(error => this._handleError(error));
     }
 

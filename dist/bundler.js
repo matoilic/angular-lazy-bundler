@@ -216,8 +216,8 @@ var Bundler = (function () {
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundleDependency = function bundleDependency(packageName) {
-        return this.bundleDependencies([packageName], packageName);
+    Bundler.prototype.bundlePackage = function bundleDependency(packageName) {
+        return this.bundlePackages([packageName], packageName);
     };
 
     /**
@@ -228,7 +228,7 @@ var Bundler = (function () {
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundleDependencies = function bundleDependencies(packageNames, saveAs) {
+    Bundler.prototype.bundlePackages = function bundleDependencies(packageNames, saveAs) {
         var _this5 = this;
 
         var traceExpression = packageNames.join(' + ');
@@ -273,14 +273,14 @@ var Bundler = (function () {
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundleRemainingDependencies = function bundleRemainingDependencies() {
+    Bundler.prototype.bundleRemainingPackages = function bundleRemainingDependencies() {
         var _this7 = this;
 
         var packageDefinition = JSON.parse(_fsExtra2['default'].readFileSync('package.json').toString());
         var dependencies = Object.keys(packageDefinition.jspm.dependencies);
 
         return _bluebird2['default'].map(dependencies, function (packageName) {
-            return _this7.bundleDependency(packageName);
+            return _this7.bundlePackage(packageName);
         })['catch'](function (error) {
             return _this7._handleError(error);
         });

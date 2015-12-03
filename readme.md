@@ -48,14 +48,17 @@ For the bundler to work it's required to have a project structure as generated b
 ## API
 
 [new Bundler(options)](#new_Bundler_new)
-- [.bundleComponent(index)](#Bundler+bundleComponent) ⇒ <code>Promise</code>
-- [.bundleComponents()](#Bundler+bundleComponents) ⇒ <code>Promise</code>
-- [.bundleDependency(packageName)](#Bundler+bundleDependency) ⇒ <code>Promise</code>
-- [.bundleDependencies(packageNames, saveAs)](#Bundler+bundleDependencies) ⇒ <code>Promise</code>
-- [.bundleRemainingDependencies()](#Bundler+bundlePackageDependencies) ⇒ <code>Promise</code>
-- [.saveConfig()](#Bundler+saveConfig) ⇒ <code>Promise</code>
+- [new Bundler(options)](#new_Bundler_new)
+- [.bundle(content, saveAs)](#Bundler+bundle)
+- [.bundleComponent(index)](#Bundler+bundleComponent)
+- [.bundleComponents(componentNames, saveAs)](#Bundler+bundleComponents)
+- [.bundlePackage(packageName)](#Bundler+bundlePackage)
+- [.bundlePackages(packageNames, saveAs)](#Bundler+bundlePackages)
+- [.bundleRemainingComponents()](#Bundler+bundleRemainingComponents)
+- [.bundleRemainingPackages()](#Bundler+bundleRemainingPackages)
+- [.saveConfig()](#Bundler+saveConfig)
 
-<a name="Bundler"></a><a name="new_Bundler_new"></a>
+<a name="new_Bundler_new"></a>
 ### new Bundler(options)
 
 | Param | Type | Default | Description |
@@ -70,53 +73,62 @@ For the bundler to work it's required to have a project structure as generated b
 | [options.minify] | <code>Boolean</code> | <code>true</code> | Enable / disable minification of bundled resources. |
 | [options.tab] | <code>String</code> | <code>4 spaces</code> | What to use as tab when formatting the updated SystemJS configuration. |
 
+<a name="Bundler+bundle"></a>
+### bundler.bundle(content, saveAs) ⇒ <code>Promise</code>
+Bundles components and 3rd-party packages.
+
+| Param | Type | Description |
+| --- | --- | --- |
+| content | <code>Object</code> | Bundle content. |
+| [content.components] | <code>Array</code> | Which components to bundle (without "components/" prefix and without "/index.js" sufix). |
+| [content.packages] | <code>Array</code> | Which packages to bundle. |
+| saveAs | <code>String</code> | Name of the resulting bundle (without .js extension). |
+
 <a name="Bundler+bundleComponent"></a>
 ### bundler.bundleComponent(index) ⇒ <code>Promise</code>
-Bundle a specific application component.
-
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
+Bundle a specific component.
 
 | Param | Type | Description |
 | --- | --- | --- |
 | index | <code>String</code> | Path to the index.js file of the component. |
 
 <a name="Bundler+bundleComponents"></a>
-### bundler.bundleComponents() ⇒ <code>Promise</code>
-Bundles all application components.
+### bundler.bundleComponents(componentNames, saveAs) ⇒ <code>Promise</code>
+Combine multiple components into one bundle.
 
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
-<a name="Bundler+bundleDependency"></a>
-### bundler.bundleDependency(packageName) ⇒ <code>Promise</code>
+| Param | Type | Description |
+| --- | --- | --- |
+| componentNames | <code>Array</code> | Which components to bundle (without "components/" prefix and without "/index.js" sufix). |
+| saveAs | <code>String</code> | Name of the resulting bundle (without .js extension). |
+
+<a name="Bundler+bundlePackage"></a>
+### bundler.bundlePackage(packageName) ⇒ <code>Promise</code>
 Bundle a certain vendor package.
-
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
 
 | Param | Type | Description |
 | --- | --- | --- |
 | packageName | <code>String</code> | Package name, same as in the SystemJS configuration. |
 
-<a name="Bundler+bundleDependencies"></a>
-### bundler.bundleDependencies(packageNames, saveAs) ⇒ <code>Promise</code>
+<a name="Bundler+bundlePackages"></a>
+### bundler.bundlePackages(packageNames, saveAs) ⇒ <code>Promise</code>
 Combine multiple vendor packages into one bundle.
-
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
 
 | Param | Type | Description |
 | --- | --- | --- |
 | packageNames | <code>Array</code> | Which packages to bundle. |
 | saveAs | <code>String</code> | Name of the resulting bundle (without .js extension). |
 
-<a name="Bundler+bundleRemainingDependencies"></a>
-### bundler.bundleRemainingDependencies() ⇒ <code>Promise</code>
+<a name="Bundler+bundleRemainingComponents"></a>
+### bundler.bundleRemainingComponents() ⇒ <code>Promise</code>
+Bundles all components which are not yet part of an existing bundle.
+
+<a name="Bundler+bundleRemainingPackages"></a>
+### bundler.bundleRemainingPackages() ⇒ <code>Promise</code>
 Bundles all vendor packages which are not yet part of an existing bundle.
 
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
 <a name="Bundler+saveConfig"></a>
 ### bundler.saveConfig() ⇒ <code>Promise</code>
 Saves bundle information to the SystemJS configuration.
-
-**Kind**: instance method of <code>[Bundler](#Bundler)</code>
-
 
 ## Usage example
 
@@ -132,7 +144,7 @@ bundler
     .bundleRemainingComponents()
     //creates a custom bundle with all packages required for boostrapping the application
     .then(() => {
-        return bundler.bundleDependencies(
+        return bundler.bundlePackages(
             [
                 'angular',
                 'angular-resource',
@@ -144,7 +156,7 @@ bundler
         );
     })
     //bundles the remaining packages individually
-    .then(() => bundler.bundleRemainingDependencies())
+    .then(() => bundler.bundleRemainingPackages())
     //updates our SystemJS configuration
     .then(() => bundler.saveConfig())
     //here we can handle errors
