@@ -72,6 +72,14 @@ var Bundler = (function () {
         this._systemConfig.bundles = {};
     }
 
+    /**
+     * Bundles all resources in the given dependency tree.
+     *
+     * @param {Object} tree - The dependency tree to build.
+     * @returns {Promise}
+     * @private
+     */
+
     Bundler.prototype._buildTree = function _buildTree(tree) {
         var _this = this;
 
@@ -84,49 +92,120 @@ var Bundler = (function () {
     };
 
     /**
-     * Bundle a specific application component.
+     * Bundles components and 3rd-party packages.
      *
-     * @param {String} index - Path to the index.js file of the component.
+     * @param {Object} content - Bundle content.
+     * @param {Array} [content.components] - Which components to bundle (without "components/" prefix and without "/index.js" sufix).
+     * @param {Array} [content.packages] - Which packages to bundle.
+     * @param {String} saveAs - Name of the resulting bundle (without .js extension).
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundleComponent = function bundleComponent(index) {
+    Bundler.prototype.bundle = function bundle(_ref, saveAs) {
         var _this2 = this;
 
-        var root = this._normalizePath(_path2['default'].dirname(index));
+        var _ref$components = _ref.components;
+        var components = _ref$components === undefined ? [] : _ref$components;
+        var _ref$packages = _ref.packages;
+        var packages = _ref$packages === undefined ? [] : _ref$packages;
 
-        return this._builder.trace(index).then(function (tree) {
-            return _this2._filterVendorImports(tree);
-        }).then(function (tree) {
-            return _this2._filterSubpackages(root, tree);
-        }).then(function (tree) {
-            return _this2._filterPlugins(tree);
-        }).then(function (tree) {
-            return _this2._buildTree(tree);
+        var updateTree = function updateTree(component) {
+            return function (tree) {
+                component.tree = tree;
+
+                return component;
+            };
+        };
+
+        return _bluebird2['default'].map(components, function (name) {
+            return 'components/' + name + '/index';
+        }).map(function (componentIndex) {
+            return _this2._builder.trace(componentIndex).then(updateTree({ root: _path2['default'].dirname(componentIndex) }));
+        }).map(function (component) {
+            return _this2._filterVendorImports(component.tree).then(updateTree(component));
+        }).map(function (component) {
+            return _this2._filterSubpackages(component.root, component.tree).then(updateTree(component));
+        }).map(function (component) {
+            return _this2._filterPlugins(component.tree);
+        }).reduce(function (componentsTree, tree) {
+            return _lodash2['default'].merge(componentsTree, tree);
+        }, {}).then(function (componentsTree) {
+            var traceExpression = packages.join(' + ');
+
+            return _this2._builder.trace(traceExpression).then(function (tree) {
+                return _this2._filterVendors(tree, packages);
+            }).then(function (tree) {
+                return _this2._filterAlreadyBundled(tree);
+            }).then(function (packagesTree) {
+                return _lodash2['default'].merge(componentsTree, packagesTree);
+            });
+        }).then(function (bundleTree) {
+            return _this2._buildTree(bundleTree);
         }).then(function (bundle) {
-            return _this2._saveBundle(root, bundle);
+            return _this2._saveBundle(saveAs, bundle);
         })['catch'](function (error) {
             return _this2._handleError(error);
         });
     };
 
     /**
-     * Bundles all application components.
+     * Bundle a specific component.
      *
+     * @param {String} index - Path to the index.js file of the component.
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundleComponents = function bundleComponents() {
+    Bundler.prototype.bundleComponent = function bundleComponent(index) {
         var _this3 = this;
 
-        var indexFiles = _glob2['default'].sync(_path2['default'].join(this._options.source, '**', 'index.js'));
+        var root = this._normalizePath(_path2['default'].dirname(index));
 
-        return _bluebird2['default'].map(indexFiles, function (index) {
-            return _this3._normalizePath(_path2['default'].relative(_this3._options.source, index));
-        }).map(function (index) {
-            return _this3.bundleComponent(index);
+        return this._builder.trace(index).then(function (tree) {
+            return _this3._filterAlreadyBundled(tree);
+        }).then(function (tree) {
+            return _this3._filterVendorImports(tree);
+        }).then(function (tree) {
+            return _this3._filterSubpackages(root, tree);
+        }).then(function (tree) {
+            return _this3._filterPlugins(tree);
+        }).then(function (tree) {
+            return _this3._buildTree(tree);
+        }).then(function (bundle) {
+            return _this3._saveBundle(root, bundle);
         })['catch'](function (error) {
             return _this3._handleError(error);
+        });
+    };
+
+    /**
+     * Combine multiple components into one bundle.
+     *
+     * @param {Array} componentNames - Which components to bundle (without "components/" prefix and without "/index.js" sufix).
+     * @param {String} saveAs - Name of the resulting bundle (without .js extension).
+     * @returns {Promise}
+     */
+
+    Bundler.prototype.bundleComponents = function bundleComponents(componentNames, saveAs) {
+        var _this4 = this;
+
+        return _bluebird2['default'].map(componentNames, function (name) {
+            return 'components/' + name + '/index';
+        }).map(function (index) {
+            return _this4._builder.trace(index);
+        }).map(function (tree) {
+            return _this4._filterVendorImports(tree);
+        }).map(function (tree) {
+            return _this4._filterSubpackages(tree);
+        }).map(function (tree) {
+            return _this4._filterPlugins(tree);
+        }).reduce(function (bundleTree, tree) {
+            return _lodash2['default'].merge(bundleTree, tree);
+        }, {}).then(function (tree) {
+            return _this4._buildTree(tree);
+        }).then(function (bundle) {
+            return _this4._saveBundle(saveAs, bundle);
+        })['catch'](function (error) {
+            return _this4._handleError(error);
         });
     };
 
@@ -150,21 +229,41 @@ var Bundler = (function () {
      */
 
     Bundler.prototype.bundleDependencies = function bundleDependencies(packageNames, saveAs) {
-        var _this4 = this;
+        var _this5 = this;
 
         var traceExpression = packageNames.join(' + ');
         var dest = saveAs ? saveAs : packageNames.join('+');
 
         return this._builder.trace(traceExpression).then(function (tree) {
-            return _this4._filterVendors(tree, packageNames);
+            return _this5._filterVendors(tree, packageNames);
         }).then(function (tree) {
-            return _this4._filterAlreadyBundled(tree);
+            return _this5._filterAlreadyBundled(tree);
         }).then(function (tree) {
-            return _this4._buildTree(tree);
+            return _this5._buildTree(tree);
         }).then(function (tree) {
-            return _this4._saveBundle(dest, tree);
+            return _this5._saveBundle(dest, tree);
         })['catch'](function (error) {
-            return _this4._handleError(error);
+            return _this5._handleError(error);
+        });
+    };
+
+    /**
+     * Bundles all components which are not yet part of an existing bundle.
+     *
+     * @returns {Promise}
+     */
+
+    Bundler.prototype.bundleRemainingComponents = function bundleRemainingComponents() {
+        var _this6 = this;
+
+        var indexFiles = _glob2['default'].sync(_path2['default'].join(this._options.source, '**', 'index.js'));
+
+        return _bluebird2['default'].map(indexFiles, function (index) {
+            return _this6._normalizePath(_path2['default'].relative(_this6._options.source, index)).slice(0, -3);
+        }).map(function (index) {
+            return _this6.bundleComponent(index);
+        })['catch'](function (error) {
+            return _this6._handleError(error);
         });
     };
 
@@ -174,16 +273,16 @@ var Bundler = (function () {
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundlePackageDependencies = function bundlePackageDependencies() {
-        var _this5 = this;
+    Bundler.prototype.bundleRemainingDependencies = function bundleRemainingDependencies() {
+        var _this7 = this;
 
         var packageDefinition = JSON.parse(_fsExtra2['default'].readFileSync('package.json').toString());
         var dependencies = Object.keys(packageDefinition.jspm.dependencies);
 
         return _bluebird2['default'].map(dependencies, function (packageName) {
-            return _this5.bundleDependency(packageName);
+            return _this7.bundleDependency(packageName);
         })['catch'](function (error) {
-            return _this5._handleError(error);
+            return _this7._handleError(error);
         });
     };
 
@@ -196,13 +295,13 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._filterAlreadyBundled = function _filterAlreadyBundled(tree) {
-        var _this6 = this;
+        var _this8 = this;
 
-        return _lodash2['default'].omit(tree, function (dependency) {
-            return Object.keys(_this6._systemConfig.bundles).some(function (bundleName) {
-                return _this6._systemConfig.bundles[bundleName].indexOf(dependency.name) !== -1;
+        return _bluebird2['default'].resolve(_lodash2['default'].omit(tree, function (dependency) {
+            return Object.keys(_this8._systemConfig.bundles).some(function (bundleName) {
+                return _this8._systemConfig.bundles[bundleName].indexOf(dependency.name) !== -1;
             });
-        });
+        }));
     };
 
     /**
@@ -218,9 +317,9 @@ var Bundler = (function () {
             return tree;
         }
 
-        return _lodash2['default'].omit(tree, function (dependency) {
+        return _bluebird2['default'].resolve(_lodash2['default'].omit(tree, function (dependency) {
             return dependency.name.indexOf('!') > -1 && dependency.name.indexOf('!') < dependency.name.indexOf('plugin-css@');
-        });
+        }));
     };
 
     /**
@@ -233,11 +332,11 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._filterSubpackages = function _filterSubpackages(root, tree) {
-        var _this7 = this;
+        var _this9 = this;
 
-        return _lodash2['default'].omit(tree, function (dependency) {
-            return _this7._isInSubpackageWithin(dependency.name, root) || _this7._isInPackageOutside(dependency.name, root);
-        });
+        return _bluebird2['default'].resolve(_lodash2['default'].omit(tree, function (dependency) {
+            return _this9._isInSubpackageWithin(dependency.name, root) || _this9._isInPackageOutside(dependency.name, root);
+        }));
     };
 
     /**
@@ -249,11 +348,11 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._filterVendorImports = function _filterVendorImports(tree) {
-        var _this8 = this;
+        var _this10 = this;
 
-        return _lodash2['default'].pick(tree, function (dependency) {
-            return _this8._stripPlugins(dependency.name).indexOf(':') === -1;
-        });
+        return _bluebird2['default'].resolve(_lodash2['default'].pick(tree, function (dependency) {
+            return _this10._stripPlugins(dependency.name).indexOf(':') === -1;
+        }));
     };
 
     /**
@@ -266,17 +365,17 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._filterVendors = function _filterVendors(tree, keepers) {
-        var _this9 = this;
+        var _this11 = this;
 
         var keeperMappings = keepers.map(function (packageName) {
-            return _this9._systemConfig.map[packageName];
+            return _this11._systemConfig.map[packageName];
         });
 
-        return _lodash2['default'].pick(tree, function (dependency) {
+        return _bluebird2['default'].resolve(_lodash2['default'].pick(tree, function (dependency) {
             return keeperMappings.some(function (mapping) {
                 return dependency.name.indexOf(mapping) === 0;
             });
-        });
+        }));
     };
 
     /**
@@ -297,7 +396,7 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._instantiateBuilder = function _instantiateBuilder() {
-        var _this10 = this;
+        var _this12 = this;
 
         var config = this._loadSystemConfig();
         config.bundles = {};
@@ -306,7 +405,7 @@ var Bundler = (function () {
         var fileProtocol = process.platform === 'win32' ? 'file:///' : 'file://';
         Object.keys(config.paths).forEach(function (key) {
             if (config.paths[key].indexOf('file:') !== 0) {
-                config.paths[key] = fileProtocol + _this10._normalizePath(_path2['default'].resolve(config.baseURL, config.paths[key]));
+                config.paths[key] = fileProtocol + _this12._normalizePath(_path2['default'].resolve(config.baseURL, config.paths[key]));
             }
         });
 
@@ -412,7 +511,7 @@ var Bundler = (function () {
      */
 
     Bundler.prototype._saveBundle = function _saveBundle(root, bundle) {
-        var _this11 = this;
+        var _this13 = this;
 
         if (!bundle.modules.length) {
             return _bluebird2['default'].resolve(null);
@@ -432,7 +531,7 @@ var Bundler = (function () {
         var source = bundle.source;
 
         return _fsExtra2['default'].ensureDirAsync(_path2['default'].dirname(dest)).then(function () {
-            if (_this11._options.sourceMaps) {
+            if (_this13._options.sourceMaps) {
                 var sourceMap = filename + '.map';
                 source += '\n\n//# sourceMappingURL=' + sourceMap;
 
@@ -441,7 +540,7 @@ var Bundler = (function () {
         }).then(function () {
             return _fsExtra2['default'].writeFileAsync(dest, source);
         }).then(function () {
-            _this11._systemConfig.bundles[_this11._options.bundlesBaseUrl + '/' + root] = bundle.modules;
+            _this13._systemConfig.bundles[_this13._options.bundlesBaseUrl + '/' + root] = bundle.modules;
         });
     };
 

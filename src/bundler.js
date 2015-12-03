@@ -65,12 +65,29 @@ class Bundler {
      * @returns {Promise}
      */
     bundle({components: components = [], packages: packages = []}, saveAs) {
+        const updateTree = (component) => {
+            return function(tree) {
+                component.tree = tree;
+
+                return component;
+            };
+        };
+
         return Promise
             .map(components, name => `components/${name}/index`)
-            .map(componentIndex => this._builder.trace(componentIndex))
-            .map(tree => this._filterVendorImports(tree))
-            .map(tree => this._filterSubpackages(tree))
-            .map(tree => this._filterPlugins(tree))
+            .map(componentIndex => this._builder
+                .trace(componentIndex)
+                .then(updateTree({ root: path.dirname(componentIndex) }))
+            )
+            .map(component => this
+                ._filterVendorImports(component.tree)
+                .then(updateTree(component))
+            )
+            .map(component => this
+                ._filterSubpackages(component.root, component.tree)
+                .then(updateTree(component))
+            )
+            .map(component => this._filterPlugins(component.tree))
             .reduce((componentsTree, tree) => _.merge(componentsTree, tree), {})
             .then(componentsTree => {
                 const traceExpression = packages.join(' + ');
@@ -97,6 +114,7 @@ class Bundler {
 
         return this._builder
             .trace(index)
+            .then(tree => this._filterAlreadyBundled(tree))
             .then(tree => this._filterVendorImports(tree))
             .then(tree => this._filterSubpackages(root, tree))
             .then(tree => this._filterPlugins(tree))
@@ -164,7 +182,7 @@ class Bundler {
         const indexFiles = glob.sync(path.join(this._options.source, '**', 'index.js'));
 
         return Promise
-            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)))
+            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)).slice(0, -3))
             .map(index => this.bundleComponent(index))
             .catch(error => this._handleError(error));
     }
@@ -191,11 +209,11 @@ class Bundler {
      * @private
      */
     _filterAlreadyBundled(tree) {
-        return _.omit(tree, dependency => {
+        return Promise.resolve(_.omit(tree, dependency => {
             return Object.keys(this._systemConfig.bundles).some(bundleName => {
                 return this._systemConfig.bundles[bundleName].indexOf(dependency.name) !== -1;
             });
-        });
+        }));
     }
 
     /**
@@ -210,12 +228,12 @@ class Bundler {
             return tree;
         }
 
-        return _.omit(tree, dependency => {
+        return Promise.resolve(_.omit(tree, dependency => {
             return (
                 dependency.name.indexOf('!') > -1 &&
                 dependency.name.indexOf('!') < dependency.name.indexOf('plugin-css@')
             );
-        });
+        }));
     }
 
     /**
@@ -227,12 +245,12 @@ class Bundler {
      * @private
      */
     _filterSubpackages(root, tree) {
-        return _.omit(tree, dependency => {
+        return Promise.resolve(_.omit(tree, dependency => {
             return (
                 this._isInSubpackageWithin(dependency.name, root) ||
                 this._isInPackageOutside(dependency.name, root)
             );
-        });
+        }));
     }
 
     /**
@@ -243,7 +261,7 @@ class Bundler {
      * @private
      */
     _filterVendorImports(tree) {
-        return _.pick(tree, dependency => this._stripPlugins(dependency.name).indexOf(':') === -1);
+        return Promise.resolve(_.pick(tree, dependency => this._stripPlugins(dependency.name).indexOf(':') === -1));
     }
 
     /**
@@ -257,9 +275,9 @@ class Bundler {
     _filterVendors(tree, keepers) {
         const keeperMappings = keepers.map(packageName => this._systemConfig.map[packageName]);
 
-        return _.pick(tree, dependency => {
+        return Promise.resolve(_.pick(tree, dependency => {
             return keeperMappings.some(mapping => dependency.name.indexOf(mapping) === 0);
-        });
+        }));
     }
 
     /**
