@@ -156,7 +156,7 @@ bundler
         'main'
     )
     //bundles the sources of our application per component
-    .bundleRemainingComponents()
+    .then(() => bundler.bundleRemainingComponents())
     //creates a custom bundle with all packages required for boostrapping the application
     .then(() => {
         return bundler.bundlePackages(
