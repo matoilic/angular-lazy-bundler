@@ -101,13 +101,13 @@ var Bundler = (function () {
      * @returns {Promise}
      */
 
-    Bundler.prototype.bundle = function bundle(_ref, saveAs) {
+    Bundler.prototype.bundle = function bundle(_ref2, saveAs) {
         var _this2 = this;
 
-        var _ref$components = _ref.components;
-        var components = _ref$components === undefined ? [] : _ref$components;
-        var _ref$packages = _ref.packages;
-        var packages = _ref$packages === undefined ? [] : _ref$packages;
+        var _ref2$components = _ref2.components;
+        var components = _ref2$components === undefined ? [] : _ref2$components;
+        var _ref2$packages = _ref2.packages;
+        var packages = _ref2$packages === undefined ? [] : _ref2$packages;
 
         var updateTree = function updateTree(component) {
             return function (tree) {
@@ -277,7 +277,13 @@ var Bundler = (function () {
         var _this7 = this;
 
         var packageDefinition = JSON.parse(_fsExtra2['default'].readFileSync('package.json').toString());
-        var dependencies = Object.keys(packageDefinition.jspm.dependencies);
+        var dependencies = Object.keys(packageDefinition.jspm.dependencies)
+        // only package those with a "main" definition
+        .filter(function (packageName) {
+            var absolutePath = _this7._builder.loader.normalizeSync(packageName).slice(7);
+
+            return _fsExtra2['default'].existsSync(absolutePath);
+        });
 
         return _bluebird2['default'].map(dependencies, function (packageName) {
             return _this7.bundlePackage(packageName);
@@ -367,14 +373,52 @@ var Bundler = (function () {
     Bundler.prototype._filterVendors = function _filterVendors(tree, keepers) {
         var _this11 = this;
 
-        var keeperMappings = keepers.map(function (packageName) {
-            return _this11._systemConfig.map[packageName];
-        });
+        var keeperMappings = new Set(keepers.map(function (packageName) {
+            var containingPackage = packageName.split('/').shift();
+
+            return _this11._systemConfig.map[containingPackage] || _this11._systemConfig.paths[containingPackage];
+        }));
+
+        // also resolve sub dependencies of the libraries to keep
+        var before = 0;
+        var after = 1;
+        while (before !== after) {
+            before = keeperMappings.length;
+
+            keeperMappings.forEach(function (key) {
+                var subMapping = _this11._systemConfig.map[key];
+
+                if (typeof subMapping === 'object') {
+                    Object.keys(subMapping).forEach(function (k) {
+                        return keeperMappings.add(subMapping[k]);
+                    });
+                }
+            });
+
+            after = keeperMappings.length;
+        }
 
         return _bluebird2['default'].resolve(_lodash2['default'].pick(tree, function (dependency) {
-            return keeperMappings.some(function (mapping) {
-                return dependency.name.indexOf(mapping) === 0;
-            });
+            for (var _iterator = keeperMappings, _isArray = Array.isArray(_iterator), _i = 0, _iterator = _isArray ? _iterator : _iterator[Symbol.iterator]();;) {
+                var _ref;
+
+                if (_isArray) {
+                    if (_i >= _iterator.length) break;
+                    _ref = _iterator[_i++];
+                } else {
+                    _i = _iterator.next();
+                    if (_i.done) break;
+                    _ref = _i.value;
+                }
+
+                var mapping = _ref;
+
+                if (dependency.name.indexOf(mapping) === 0) {
+                    return true;
+                }
+            }
+
+            return false;
         }));
     };
 

@@ -194,7 +194,14 @@ class Bundler {
      */
     bundleRemainingPackages() {
         const packageDefinition = JSON.parse(fs.readFileSync('package.json').toString());
-        const dependencies = Object.keys(packageDefinition.jspm.dependencies);
+        const dependencies = Object
+            .keys(packageDefinition.jspm.dependencies)
+            // only package those with a "main" definition
+            .filter(packageName => {
+                const absolutePath = this._builder.loader.normalizeSync(packageName).slice(7);
+
+                return fs.existsSync(absolutePath);
+            });
 
         return Promise
             .map(dependencies, packageName => this.bundlePackage(packageName))
@@ -273,10 +280,38 @@ class Bundler {
      * @private
      */
     _filterVendors(tree, keepers) {
-        const keeperMappings = keepers.map(packageName => this._systemConfig.map[packageName]);
+        const keeperMappings = new Set(keepers.map(packageName => {
+            const containingPackage = packageName.split('/').shift();
+
+            return this._systemConfig.map[containingPackage] || this._systemConfig.paths[containingPackage];
+        }));
+
+
+        // also resolve sub dependencies of the libraries to keep
+        let before = 0;
+        let after = 1;
+        while(before !== after) {
+            before = keeperMappings.length;
+
+            keeperMappings.forEach((key) => {
+                const subMapping = this._systemConfig.map[key];
+
+                if(typeof subMapping === 'object') {
+                    Object.keys(subMapping).forEach((k) => keeperMappings.add(subMapping[k]));
+                }
+            });
+
+            after = keeperMappings.length;
+        }
 
         return Promise.resolve(_.pick(tree, dependency => {
-            return keeperMappings.some(mapping => dependency.name.indexOf(mapping) === 0);
+            for(let mapping of keeperMappings) {
+                if(dependency.name.indexOf(mapping) === 0) {
+                    return true;
+                }
+            }
+
+            return false;
         }));
     }
 
