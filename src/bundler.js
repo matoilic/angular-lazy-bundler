@@ -16,6 +16,7 @@ const defaultOptions = {
     systemJsConfig: 'config/system.js',
     sourceMaps: true,
     minify: true,
+    cssOptimize: false,
     tab: '  '
 };
 
@@ -30,6 +31,7 @@ class Bundler {
      * @param {String} [options.systemJsConfig=config/system.js] - Path to the SystemJS configuration file.
      * @param {Boolean} [options.sourceMaps=true] - Enable / disable sourcemap generation.
      * @param {Boolean} [options.minify=true] - Enable / disable minification of bundled resources.
+     * @param {Boolean} [options.cssOptimize=false] - Enable / disable CSS optimization through SystemJS' CSS plugin. The plugin uses `clean-css` in the background.
      * @param {String} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
      */
     constructor(options = {}) {
@@ -50,7 +52,8 @@ class Bundler {
         return this._builder
             .bundle(tree, {
                 sourceMaps: this._options.sourceMaps,
-                minify: this._options.minify
+                minify: this._options.minify,
+                cssOptimize: this._options.cssOptimize
             })
             .catch(error => this._handleError(error));
     }
@@ -73,29 +76,10 @@ class Bundler {
             };
         };
 
-        return Promise
-            .map(components, name => `components/${name}/index`)
-            .map(componentIndex => this._builder
-                .trace(componentIndex)
-                .then(updateTree({ root: path.dirname(componentIndex) }))
-            )
-            .map(component => this
-                ._filterVendorImports(component.tree)
-                .then(updateTree(component))
-            )
-            .map(component => this
-                ._filterSubpackages(component.root, component.tree)
-                .then(updateTree(component))
-            )
-            .map(component => this._filterPlugins(component.tree))
-            .reduce((componentsTree, tree) => _.merge(componentsTree, tree), {})
+        return this._traceComponents(components)
             .then(componentsTree => {
-                const traceExpression = packages.join(' + ');
-
-                return this._builder
-                    .trace(traceExpression)
-                    .then(tree => this._filterVendors(tree, packages))
-                    .then(tree => this._filterAlreadyBundled(tree))
+                return this
+                    ._tracePackages(packages)
                     .then(packagesTree => _.merge(componentsTree, packagesTree))
             })
             .then(bundleTree => this._buildTree(bundleTree))
@@ -131,13 +115,7 @@ class Bundler {
      * @returns {Promise}
      */
     bundleComponents(componentNames, saveAs) {
-        return Promise
-            .map(componentNames, name => `components/${name}/index`)
-            .map(index => this._builder.trace(index))
-            .map(tree => this._filterVendorImports(tree))
-            .map(tree => this._filterSubpackages(tree))
-            .map(tree => this._filterPlugins(tree))
-            .reduce((bundleTree, tree) => _.merge(bundleTree, tree), {})
+        return this._traceComponents(componentNames)
             .then(tree => this._buildTree(tree))
             .then(bundle => this._saveBundle(saveAs, bundle))
             .catch(error => this._handleError(error));
@@ -161,15 +139,10 @@ class Bundler {
      * @returns {Promise}
      */
     bundlePackages(packageNames, saveAs) {
-        const traceExpression = packageNames.join(' + ');
-        const dest = saveAs ? saveAs : packageNames.join('+');
-
-        return this._builder
-            .trace(traceExpression)
-            .then(tree => this._filterVendors(tree, packageNames))
-            .then(tree => this._filterAlreadyBundled(tree))
+        return this
+            ._tracePackages(packageNames)
             .then(tree => this._buildTree(tree))
-            .then(tree => this._saveBundle(dest, tree))
+            .then(tree => this._saveBundle(saveAs, tree))
             .catch(error => this._handleError(error));
     }
 
@@ -505,6 +478,64 @@ class Bundler {
         }
 
         return path;
+    }
+
+    /**
+     * Builds the dependency tree for the given components.
+     *
+     * @param {Array} components
+     * @returns {Promise}
+     * @private
+     */
+    _traceComponents(components) {
+        if(!components.length) {
+            return Promise.resolve({});
+        }
+
+        const updateTree = (component) => {
+            return function(tree) {
+                component.tree = tree;
+
+                return component;
+            };
+        };
+
+        return Promise
+            .map(components, name => `components/${name}/index`)
+            .map(componentIndex => this._builder
+                .trace(componentIndex)
+                .then(updateTree({ root: path.dirname(componentIndex) }))
+            )
+            .map(component => this
+                ._filterVendorImports(component.tree)
+                .then(updateTree(component))
+            )
+            .map(component => this
+                ._filterSubpackages(component.root, component.tree)
+                .then(updateTree(component))
+            )
+            .map(component => this._filterPlugins(component.tree))
+            .reduce((componentsTree, tree) => _.merge(componentsTree, tree), {})
+    }
+
+    /**
+     * Builds the dependency tree for the given packages.
+     *
+     * @param {Array} packages
+     * @returns {Promise}
+     * @private
+     */
+    _tracePackages(packages) {
+        if(!packages.length) {
+            return Promise.resolve({});
+        }
+
+        const traceExpression = packages.join(' + ');
+
+        return this._builder
+            .trace(traceExpression)
+            .then(tree => this._filterVendors(tree, packages))
+            .then(tree => this._filterAlreadyBundled(tree));
     }
 }
 

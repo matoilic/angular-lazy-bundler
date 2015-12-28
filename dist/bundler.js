@@ -44,6 +44,7 @@ var defaultOptions = {
     systemJsConfig: 'config/system.js',
     sourceMaps: true,
     minify: true,
+    cssOptimize: false,
     tab: '  '
 };
 
@@ -58,6 +59,7 @@ var Bundler = (function () {
      * @param {String} [options.systemJsConfig=config/system.js] - Path to the SystemJS configuration file.
      * @param {Boolean} [options.sourceMaps=true] - Enable / disable sourcemap generation.
      * @param {Boolean} [options.minify=true] - Enable / disable minification of bundled resources.
+     * @param {Boolean} [options.cssOptimize=false] - Enable / disable CSS optimization through SystemJS' CSS plugin. The plugin uses `clean-css` in the background.
      * @param {String} [options.tab=4 spaces] - What to use as tab when formatting the updated SystemJS configuration.
      */
 
@@ -85,7 +87,8 @@ var Bundler = (function () {
 
         return this._builder.bundle(tree, {
             sourceMaps: this._options.sourceMaps,
-            minify: this._options.minify
+            minify: this._options.minify,
+            cssOptimize: this._options.cssOptimize
         })['catch'](function (error) {
             return _this._handleError(error);
         });
@@ -117,26 +120,8 @@ var Bundler = (function () {
             };
         };
 
-        return _bluebird2['default'].map(components, function (name) {
-            return 'components/' + name + '/index';
-        }).map(function (componentIndex) {
-            return _this2._builder.trace(componentIndex).then(updateTree({ root: _path2['default'].dirname(componentIndex) }));
-        }).map(function (component) {
-            return _this2._filterVendorImports(component.tree).then(updateTree(component));
-        }).map(function (component) {
-            return _this2._filterSubpackages(component.root, component.tree).then(updateTree(component));
-        }).map(function (component) {
-            return _this2._filterPlugins(component.tree);
-        }).reduce(function (componentsTree, tree) {
-            return _lodash2['default'].merge(componentsTree, tree);
-        }, {}).then(function (componentsTree) {
-            var traceExpression = packages.join(' + ');
-
-            return _this2._builder.trace(traceExpression).then(function (tree) {
-                return _this2._filterVendors(tree, packages);
-            }).then(function (tree) {
-                return _this2._filterAlreadyBundled(tree);
-            }).then(function (packagesTree) {
+        return this._traceComponents(components).then(function (componentsTree) {
+            return _this2._tracePackages(packages).then(function (packagesTree) {
                 return _lodash2['default'].merge(componentsTree, packagesTree);
             });
         }).then(function (bundleTree) {
@@ -188,19 +173,7 @@ var Bundler = (function () {
     Bundler.prototype.bundleComponents = function bundleComponents(componentNames, saveAs) {
         var _this4 = this;
 
-        return _bluebird2['default'].map(componentNames, function (name) {
-            return 'components/' + name + '/index';
-        }).map(function (index) {
-            return _this4._builder.trace(index);
-        }).map(function (tree) {
-            return _this4._filterVendorImports(tree);
-        }).map(function (tree) {
-            return _this4._filterSubpackages(tree);
-        }).map(function (tree) {
-            return _this4._filterPlugins(tree);
-        }).reduce(function (bundleTree, tree) {
-            return _lodash2['default'].merge(bundleTree, tree);
-        }, {}).then(function (tree) {
+        return this._traceComponents(componentNames).then(function (tree) {
             return _this4._buildTree(tree);
         }).then(function (bundle) {
             return _this4._saveBundle(saveAs, bundle);
@@ -231,17 +204,10 @@ var Bundler = (function () {
     Bundler.prototype.bundlePackages = function bundlePackages(packageNames, saveAs) {
         var _this5 = this;
 
-        var traceExpression = packageNames.join(' + ');
-        var dest = saveAs ? saveAs : packageNames.join('+');
-
-        return this._builder.trace(traceExpression).then(function (tree) {
-            return _this5._filterVendors(tree, packageNames);
-        }).then(function (tree) {
-            return _this5._filterAlreadyBundled(tree);
-        }).then(function (tree) {
+        return this._tracePackages(packageNames).then(function (tree) {
             return _this5._buildTree(tree);
         }).then(function (tree) {
-            return _this5._saveBundle(dest, tree);
+            return _this5._saveBundle(saveAs, tree);
         })['catch'](function (error) {
             return _this5._handleError(error);
         });
@@ -616,6 +582,68 @@ var Bundler = (function () {
         }
 
         return path;
+    };
+
+    /**
+     * Builds the dependency tree for the given components.
+     *
+     * @param {Array} components
+     * @returns {Promise}
+     * @private
+     */
+
+    Bundler.prototype._traceComponents = function _traceComponents(components) {
+        var _this14 = this;
+
+        if (!components.length) {
+            return _bluebird2['default'].resolve({});
+        }
+
+        var updateTree = function updateTree(component) {
+            return function (tree) {
+                component.tree = tree;
+
+                return component;
+            };
+        };
+
+        return _bluebird2['default'].map(components, function (name) {
+            return 'components/' + name + '/index';
+        }).map(function (componentIndex) {
+            return _this14._builder.trace(componentIndex).then(updateTree({ root: _path2['default'].dirname(componentIndex) }));
+        }).map(function (component) {
+            return _this14._filterVendorImports(component.tree).then(updateTree(component));
+        }).map(function (component) {
+            return _this14._filterSubpackages(component.root, component.tree).then(updateTree(component));
+        }).map(function (component) {
+            return _this14._filterPlugins(component.tree);
+        }).reduce(function (componentsTree, tree) {
+            return _lodash2['default'].merge(componentsTree, tree);
+        }, {});
+    };
+
+    /**
+     * Builds the dependency tree for the given packages.
+     *
+     * @param {Array} packages
+     * @returns {Promise}
+     * @private
+     */
+
+    Bundler.prototype._tracePackages = function _tracePackages(packages) {
+        var _this15 = this;
+
+        if (!packages.length) {
+            return _bluebird2['default'].resolve({});
+        }
+
+        var traceExpression = packages.join(' + ');
+
+        return this._builder.trace(traceExpression).then(function (tree) {
+            return _this15._filterVendors(tree, packages);
+        }).then(function (tree) {
+            return _this15._filterAlreadyBundled(tree);
+        });
     };
 
     return Bundler;
