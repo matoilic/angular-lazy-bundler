@@ -70,6 +70,7 @@ For the bundler to work it's required to have a project structure as generated b
 | [options.systemJsConfig] | <code>String</code> | <code>config/system.js</code> | Path to the SystemJS configuration file. |
 | [options.sourceMaps] | <code>Boolean</code> | <code>true</code> | Enable / disable sourcemap generation. |
 | [options.minify] | <code>Boolean</code> | <code>true</code> | Enable / disable minification of bundled resources. |
+| [options.cssOptimize] | <code>Boolean</code> | <code>false</code> | Enable / disable CSS optimization through SystemJS' CSS plugin. The plugin uses `clean-css` in the background. |
 | [options.tab] | <code>String</code> | <code>4 spaces</code> | What to use as tab when formatting the updated SystemJS configuration. |
 
 <a name="Bundler+bundle"></a>
