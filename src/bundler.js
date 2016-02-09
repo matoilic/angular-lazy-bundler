@@ -432,10 +432,13 @@ class Bundler {
             .ensureDirAsync(path.dirname(dest))
             .then(() => {
                 if(this._options.sourceMaps) {
-                    let sourceMap = filename + '.map';
-                    source += '\n\n//# sourceMappingURL=' + sourceMap;
+                    const sourceMapFileName = filename + '.map';
+                    source += '\n\n//# sourceMappingURL=' + sourceMapFileName;
 
-                    return fs.writeFileAsync(path.join(dirname, sourceMap), bundle.sourceMap)
+                    const sourceMap = JSON.parse(bundle.sourceMap);
+                    sourceMap.sources = sourceMap.sources.map((src) => `../../${src}`);
+
+                    return fs.writeFileAsync(path.join(dirname, sourceMapFileName), JSON.stringify(sourceMap));
                 }
             })
             .then(() => {
