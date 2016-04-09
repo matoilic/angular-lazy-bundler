@@ -6,6 +6,7 @@
   "files": [
     "dist",
     "src",
+    "license.md",
     "readme.md"
   ],
   "scripts": {
