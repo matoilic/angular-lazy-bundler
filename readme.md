@@ -181,3 +181,7 @@ bundler
 A lot of packages don't declare their dependencies properly. For example, UI Router doesn't declare a dependency to Angular in it's package.json. Same with Bootstrap, which doesn't have a dependency to jQuery. This leads to errors when bundling such libraries as their dependencies don't get included properly. If you encounter such issues search for special distribution build of the package on it's GitHub page, e.g. [github.com/angular/bower-angular-animate](https://github.com/angular/bower-angular-animate) for angular-animate. In that case try installing the package from there.
 
 Another possibility is to amend the missing information in `config/system.js` as already done by JSPM when it finds dependency declarations in package.json or in the JSPM registry itself.
+
+## License
+
+Licensed under [BSD 3-Clause](https://github.com/matoilic/angular-lazy-bundler/blob/master/license.md).
