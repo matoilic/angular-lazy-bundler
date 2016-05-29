@@ -24,14 +24,14 @@
   },
   "homepage": "https://github.com/matoilic/angular-lazy-bundler#readme",
   "dependencies": {
-    "bluebird": "^2.10.0",
-    "fs-extra": "^0.25.0",
-    "glob": "^5.0.14",
-    "lodash": "^3.10.1",
-    "systemjs-builder": "^0.15.7"
+    "bluebird": "^3.4.0",
+    "fs-extra": "^0.30.0",
+    "glob": "^7.0.3",
+    "lodash": "^4.13.1",
+    "systemjs-builder": "^0.15.18"
   },
   "devDependencies": {
-    "gulp": "^3.9.0",
+    "gulp": "^3.9.1",
     "gulp-babel": "^5.2.1"
   },
   "engines": {

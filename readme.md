@@ -1,5 +1,8 @@
 # Angular Lazy Bundler
 
+[![Dependency Status](https://david-dm.org/matoilic/angular-lazy-bundler.svg)](https://david-dm.org/matoilic/angular-lazy-bundler)
+[![devDependency Status](https://david-dm.org/matoilic/angular-lazy-bundler/dev-status.svg)](https://david-dm.org/matoilic/angular-lazy-bundler#info=devDependencies)
+
 ## Table of contents
 - [What does it do?](#what-does-it-do)
 - [How is it different from tools like Browserify?](#how-is-it-different-from-tools-like-browserify)
