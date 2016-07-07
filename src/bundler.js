@@ -152,10 +152,10 @@ class Bundler {
      * @returns {Promise}
      */
     bundleRemainingComponents() {
-        const indexFiles = glob.sync(path.join(this._options.source, '**', 'index.js'));
+        const indexFiles = glob.sync(path.join(this._options.baseUrl, this._options.source, 'components', '**', 'index.js'));
 
         return Promise
-            .map(indexFiles, index => this._normalizePath(path.relative(this._options.source, index)).slice(0, -3))
+            .map(indexFiles, index => this._normalizePath(path.relative(this._options.baseUrl, index)).slice(0, -3))
             .map(index => this.bundleComponent(index))
             .catch(error => this._handleError(error));
     }
@@ -355,7 +355,7 @@ class Bundler {
             child = this._navigateUp(this._stripPlugins(child));
 
             while(child.length > parent.length) {
-                if(fs.existsSync(path.join(this._options.source, child, 'index.js'))) {
+                if(fs.existsSync(path.join(this._options.baseUrl, child, 'index.js'))) {
                     return true;
                 }
 
@@ -504,7 +504,7 @@ class Bundler {
         };
 
         return Promise
-            .map(components, name => `components/${name}/index`)
+            .map(components, name => path.join(this._options.source, 'components', name, 'index'))
             .map(componentIndex => this._builder
                 .trace(componentIndex)
                 .then(updateTree({ root: path.dirname(componentIndex) }))
